@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini ile İçerik Üretici</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-4xl p-8 bg-white rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Otomatik İçerik Üretici</h1>
+        
+        <div class="mb-4">
+            <label for="inputText" class="block text-gray-700 text-sm font-bold mb-2">Örnek Metin veya Konu Başlığı:</label>
+            <textarea id="inputText" rows="10" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" placeholder="Buraya içeriğin üretilmesini istediğiniz konuyla ilgili bir başlık, birkaç cümle veya referans bir metin girin..."></textarea>
+        </div>
+
+        <div class="flex items-center justify-center">
+            <button id="submitBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                İçerik Oluştur ve WordPress'e Gönder
+            </button>
+        </div>
+
+        <div id="loader" class="hidden mt-6 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p class="text-gray-600">İçerik üretiliyor ve WordPress'e gönderiliyor... Bu işlem birkaç dakika sürebilir.</p>
+        </div>
+
+        <div id="result" class="hidden mt-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+            <p id="resultMessage"></p>
+            <a id="postLink" href="#" target="_blank" class="text-blue-600 hover:underline">Oluşturulan Taslağı Görüntüle</a>
+        </div>
+        
+        <div id="error" class="hidden mt-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+             <p id="errorMessage"></p>
+        </div>
+
+    </div>
+
+    <script>
+        const submitBtn = document.getElementById('submitBtn');
+        const inputText = document.getElementById('inputText');
+        const loader = document.getElementById('loader');
+        const resultDiv = document.getElementById('result');
+        const errorDiv = document.getElementById('error');
+        const resultMessage = document.getElementById('resultMessage');
+        const errorMessage = document.getElementById('errorMessage');
+        const postLink = document.getElementById('postLink');
+
+        submitBtn.addEventListener('click', async () => {
+            const text = inputText.value.trim();
+            if (!text) {
+                alert('Lütfen bir metin girin.');
+                return;
+            }
+
+            // Butonları ve alanları pasif hale getir
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'İşleniyor...';
+            loader.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/generate-and-post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ inputText: text })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Bilinmeyen bir hata oluştu.');
+                }
+                
+                resultMessage.innerText = data.message;
+                postLink.href = data.wordpressPostUrl;
+                resultDiv.classList.remove('hidden');
+
+            } catch (err) {
+                errorMessage.innerText = 'Hata: ' + err.message;
+                errorDiv.classList.remove('hidden');
+            } finally {
+                // İşlem bitince butonları tekrar aktif et
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'İçerik Oluştur ve WordPress\'e Gönder';
+                loader.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
