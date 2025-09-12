@@ -3,49 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini ile İçerik Üretici</title>
+    <title>Gemini WordPress Bot - Otomatik İçerik Üretici</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .trend-item { transition: all 0.3s ease; }
+        .trend-item:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="w-full max-w-4xl p-8 bg-white rounded-lg shadow-md">
-        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Otomatik İçerik Üretici</h1>
-        
-        <div class="mb-4">
-            <label for="inputText" class="block text-gray-700 text-sm font-bold mb-2">Örnek Metin veya Konu Başlığı:</label>
-            <textarea id="inputText" rows="10" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" placeholder="Buraya içeriğin üretilmesini istediğiniz konuyla ilgili bir başlık, birkaç cümle veya referans bir metin girin..."></textarea>
-        </div>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">🤖 Gemini WordPress Bot</h1>
 
-        <div class="flex items-center justify-center">
-            <button id="submitBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-                İçerik Oluştur ve WordPress'e Gönder
+        <!-- Tab Navigation -->
+        <div class="flex mb-8 bg-white rounded-lg shadow-md p-1">
+            <button class="tab-btn active flex-1 py-3 px-4 rounded-md font-medium text-gray-700 hover:bg-blue-50 transition-colors" data-tab="manual">
+                📝 Manuel İçerik
+            </button>
+            <button class="tab-btn flex-1 py-3 px-4 rounded-md font-medium text-gray-700 hover:bg-blue-50 transition-colors" data-tab="trends">
+                📊 Google Trends
             </button>
         </div>
 
-        <div id="loader" class="hidden mt-6 text-center">
+        <!-- Manual Content Tab -->
+        <div id="manual" class="tab-content active">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Manuel İçerik Üretimi</h2>
+
+                <div class="mb-4">
+                    <label for="inputText" class="block text-gray-700 text-sm font-bold mb-2">Konu Başlığı veya Metin:</label>
+                    <textarea id="inputText" rows="8" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500" placeholder="İçeriğin üretilmesini istediğiniz konuyla ilgili bir başlık, birkaç cümle veya referans metin girin..."></textarea>
+                </div>
+
+                <div class="flex items-center justify-center">
+                    <button id="submitBtn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg focus:outline-none focus:shadow-outline transition-colors">
+                        🚀 İçerik Üret ve Gönder
+                    </button>
+                </div>
+
+                <div id="manual-loader" class="hidden mt-6 text-center">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <p class="text-gray-600">İçerik üretiliyor ve WordPress'e gönderiliyor... Bu işlem birkaç dakika sürebilir.</p>
+                    <p class="text-gray-600 mt-2">Gemini AI ile içerik üretiliyor ve WordPress'e gönderiliyor...</p>
+                    <p class="text-sm text-gray-500 mt-1">Bu işlem 2-3 dakika sürebilir.</p>
+                </div>
+
+                <div id="manual-result" class="hidden mt-6 p-4 bg-green-50 border border-green-200 text-green-800 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <span class="text-green-600 mr-2">✅</span>
+                        <p id="manual-resultMessage" class="font-medium"></p>
+                    </div>
+                    <a id="manual-postLink" href="#" target="_blank" class="text-blue-600 hover:underline text-sm">📄 Oluşturulan Taslağı Görüntüle</a>
+                </div>
+
+                <div id="manual-error" class="hidden mt-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+                    <div class="flex items-center">
+                        <span class="text-red-600 mr-2">❌</span>
+                        <p id="manual-errorMessage"></p>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div id="result" class="hidden mt-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-            <p id="resultMessage"></p>
-            <a id="postLink" href="#" target="_blank" class="text-blue-600 hover:underline">Oluşturulan Taslağı Görüntüle</a>
+        <!-- Google Trends Tab -->
+        <div id="trends" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold">Google Trends Türkiye</h2>
+                    <button id="refreshTrends" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                        🔄 Yenile
+                    </button>
+                </div>
+
+                <div id="trends-loader" class="hidden text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+                    <p class="text-gray-600 mt-2">Google Trends verileri çekiliyor...</p>
+                </div>
+
+                <div id="trends-list" class="space-y-3"></div>
+
+                <div id="trends-error" class="hidden mt-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+                    <div class="flex items-center">
+                        <span class="text-red-600 mr-2">❌</span>
+                        <p id="trends-errorMessage"></p>
+                    </div>
+                </div>
+            </div>
         </div>
         
-        <div id="error" class="hidden mt-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-             <p id="errorMessage"></p>
-        </div>
-
     </div>
 
     <script>
+        // Tab functionality
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const targetTab = button.dataset.tab;
+
+                // Remove active class from all buttons and contents
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                // Add active class to clicked button and corresponding content
+                button.classList.add('active');
+                document.getElementById(targetTab).classList.add('active');
+
+                // Load content for specific tabs
+                if (targetTab === 'trends') {
+                    loadTrends();
+                }
+            });
+        });
+
+        // Manual Content Generation
         const submitBtn = document.getElementById('submitBtn');
         const inputText = document.getElementById('inputText');
-        const loader = document.getElementById('loader');
-        const resultDiv = document.getElementById('result');
-        const errorDiv = document.getElementById('error');
-        const resultMessage = document.getElementById('resultMessage');
-        const errorMessage = document.getElementById('errorMessage');
-        const postLink = document.getElementById('postLink');
+        const manualLoader = document.getElementById('manual-loader');
+        const manualResult = document.getElementById('manual-result');
+        const manualError = document.getElementById('manual-error');
+        const manualResultMessage = document.getElementById('manual-resultMessage');
+        const manualErrorMessage = document.getElementById('manual-errorMessage');
+        const manualPostLink = document.getElementById('manual-postLink');
 
         submitBtn.addEventListener('click', async () => {
             const text = inputText.value.trim();
@@ -54,12 +134,11 @@
                 return;
             }
 
-            // Butonları ve alanları pasif hale getir
             submitBtn.disabled = true;
-            submitBtn.innerText = 'İşleniyor...';
-            loader.classList.remove('hidden');
-            resultDiv.classList.add('hidden');
-            errorDiv.classList.add('hidden');
+            submitBtn.innerHTML = '⏳ İşleniyor...';
+            manualLoader.classList.remove('hidden');
+            manualResult.classList.add('hidden');
+            manualError.classList.add('hidden');
 
             try {
                 const response = await fetch('/api/generate-and-post', {
@@ -76,20 +155,138 @@
                     throw new Error(data.error || 'Bilinmeyen bir hata oluştu.');
                 }
                 
-                resultMessage.innerText = data.message;
-                postLink.href = data.wordpressPostUrl;
-                resultDiv.classList.remove('hidden');
+                manualResultMessage.innerText = data.message;
+                manualPostLink.href = data.wordpressPostUrl;
+                manualResult.classList.remove('hidden');
 
             } catch (err) {
-                errorMessage.innerText = 'Hata: ' + err.message;
-                errorDiv.classList.remove('hidden');
+                manualErrorMessage.innerText = 'Hata: ' + err.message;
+                manualError.classList.remove('hidden');
             } finally {
-                // İşlem bitince butonları tekrar aktif et
                 submitBtn.disabled = false;
-                submitBtn.innerText = 'İçerik Oluştur ve WordPress\'e Gönder';
-                loader.classList.add('hidden');
+                submitBtn.innerHTML = '🚀 İçerik Üret ve Gönder';
+                manualLoader.classList.add('hidden');
             }
         });
+
+        // Google Trends functionality
+        const refreshTrends = document.getElementById('refreshTrends');
+        const trendsLoader = document.getElementById('trends-loader');
+        const trendsList = document.getElementById('trends-list');
+        const trendsError = document.getElementById('trends-error');
+        const trendsErrorMessage = document.getElementById('trends-errorMessage');
+
+        async function loadTrends() {
+            trendsLoader.classList.remove('hidden');
+            trendsList.innerHTML = '';
+            trendsError.classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/trends');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Trend verileri alınamadı.');
+                }
+
+                displayTrends(data.trends);
+
+            } catch (err) {
+                trendsErrorMessage.innerText = err.message;
+                trendsError.classList.remove('hidden');
+            } finally {
+                trendsLoader.classList.add('hidden');
+            }
+        }
+
+        function displayTrends(trends) {
+            if (!trends || trends.length === 0) {
+                trendsList.innerHTML = '<p class="text-gray-500 text-center py-4">Trend konusu bulunamadı.</p>';
+                return;
+            }
+
+            trends.forEach((trend, index) => {
+                const trendElement = document.createElement('div');
+                trendElement.className = 'trend-item p-4 bg-gray-50 rounded-lg border border-gray-200';
+                trendElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center mb-2">
+                                <span class="bg-blue-500 text-white text-xs px-2 py-1 rounded-full mr-2">#${index + 1}</span>
+                                <h3 class="font-semibold text-gray-800">${trend.title}</h3>
+                            </div>
+                            <div class="flex flex-wrap gap-2 text-xs text-gray-500 mb-1">
+                                ${trend.searchVolume ? `<span>📈 ${trend.searchVolume}</span>` : ''}
+                                ${trend.increase ? `<span>📊 ${trend.increase}</span>` : ''}
+                                ${trend.startTime ? `<span>⏰ ${trend.startTime}</span>` : ''}
+                            </div>
+                            ${trend.status ? `<p class="text-xs text-gray-500">📊 ${trend.status}</p>` : ''}
+                        </div>
+                        <button class="generate-trend-btn bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                                data-title="${trend.title}">
+                            📝 İçerik Üret
+                        </button>
+                    </div>
+                `;
+                trendsList.appendChild(trendElement);
+            });
+
+            // Add event listeners to generate buttons
+            document.querySelectorAll('.generate-trend-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const title = e.target.dataset.title;
+                    await generateContentForTrend(title);
+                });
+            });
+        }
+
+        async function generateContentForTrend(trendTitle) {
+            // Kullanıcıdan input iste
+            const userInput = prompt(`"${trendTitle}" için içerik üretmek istiyor musunuz?\n\nLütfen içerik hakkında ek bilgi girin (örneğin: "Bu konuda detaylı bir rehber yaz", "Güncel gelişmeleri ele al" vb.):\n\nEğer sadece başlıkla devam etmek istiyorsanız boş bırakabilirsiniz.`);
+
+            if (userInput === null) return; // Kullanıcı iptal etti
+
+            // Loading göstergesi
+            const loadingBtn = event.target;
+            const originalText = loadingBtn.innerHTML;
+            loadingBtn.innerHTML = '⏳ Üretiliyor...';
+            loadingBtn.disabled = true;
+
+            try {
+                const requestData = {
+                    trendTitle: trendTitle,
+                    userInput: userInput.trim() || trendTitle // Eğer boş ise trend başlığını kullan
+                };
+
+                const response = await fetch('/api/trends/generate-content', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'İçerik üretilemedi.');
+                }
+
+                alert(`✅ "${trendTitle}" için içerik başarıyla üretildi!\n\nWordPress linki: ${data.wordpressPost.url}`);
+                window.open(data.wordpressPost.url, '_blank');
+
+            } catch (err) {
+                alert('❌ Hata: ' + err.message);
+            } finally {
+                loadingBtn.innerHTML = originalText;
+                loadingBtn.disabled = false;
+            }
+        }
+
+        refreshTrends.addEventListener('click', loadTrends);
+
+        // Load initial data
+        loadTrends();
     </script>
 </body>
 </html>

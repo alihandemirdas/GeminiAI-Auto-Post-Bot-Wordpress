@@ -18,6 +18,17 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../../public/index.html'));
 });
 
+// Uygulama kapatılırken graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n🛑 Uygulama kapatılıyor...');
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 Uygulama kapatılıyor...');
+    process.exit(0);
+});
+
 app.listen(PORT, () => {
-    console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor.`);
+    console.log(`🚀 Sunucu http://localhost:${PORT} adresinde çalışıyor.`);
 });

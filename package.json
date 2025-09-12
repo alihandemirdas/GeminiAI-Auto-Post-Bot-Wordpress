@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node src/app.js"
   },
   "keywords": [],
   "author": "",
@@ -12,8 +12,10 @@
   "description": "",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "cheerio": "^1.1.2",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "puppeteer": "^24.20.0"
   }
 }
