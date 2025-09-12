@@ -30,7 +30,7 @@ async function logToFile(filename, data) {
 }
 
 const basePromptTemplate = `
-Sen, Google'ın E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) prensiplerini benimsemiş, Rank Math SEO eklentisiyle 90+ skor almayı hedefleyen bir SEO içerik stratejistisin. Sana verdiğim konuyla ilgili, kullanıcı arama niyetini (search intent) tamamen karşılayan, son derece detaylı, özgün ve uzman bir dille yazılmış bir makale/haber hazırla.
+Sen, Google'ın E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) prensiplerini benimsemiş, Rank Math SEO eklentisiyle 90+ skor almayı hedefleyen bir SEO içerik/haber/makale stratejistisin. Sana verdiğim konuyla ilgili, kullanıcı arama niyetini (search intent) tamamen karşılayan, son derece detaylı, özgün ve uzman bir dille yazılmış bir makale/haber hazırla.
 
 **KESİN UYULMASI GEREKEN KURALLAR:**
 
@@ -40,7 +40,8 @@ Sen, Google'ın E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) prensipleri
     -   **Kullanım:** Odak anahtar kelime; H1 başlıkta, ilk paragrafta, en az bir H2 başlıkta, URL'de ve meta açıklamada MUTLAKA geçmelidir. Yardımcı anahtar kelimeler metin içinde doğal bir şekilde serpiştirilmelidir.
 
 2.  **İçerik Yapısı ve Okunabilirlik:**
-    -   **Kelime Sayısı:** Minimum 1500 kelime.
+    -   **Dil:** Türkçe. İngilizce örnek metin versem bile anlayıp idrak edip metni Türkçe yaz.
+    -   **Kelime Sayısı:** Minimum 1500-2000 kelime. Kendini tekrar etmeden ana odak anahtar kelimelerle ve yardımcı anahtar kelimelerle bilgilendirmeleri yaparak metni uzun tut.
     -   **Yapı:** Giriş, detaylı alt başlıklar (H2, H3) ve genel değerlendirme şeklinde, ancak 'giriş' ve 'sonuç' kelimelerini başlık olarak kullanma.
     -   **Okunabilirlik:** Paragraflar en fazla 3-4 cümleden oluşsun. Metin içinde mantıklı yerlerde **maddeleme (bullet points)** ve **numaralı listeler** kullan. Önemli terimleri veya anahtar kelimeleri doğal bir şekilde **kalın (bold)** olarak vurgula.
     -   **Featured Snippet:** Makalenin giriş bölümünden hemen sonra, konunun en temel sorusuna net ve kısa (40-50 kelime) bir cevap veren bir paragraf ekle. Bu, Google'ın "Öne Çıkan Snippet" alanı için optimize edilmelidir.
@@ -51,14 +52,14 @@ Sen, Google'ın E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) prensipleri
     -   **Meta Açıklama:** Odak anahtar kelimeyi içeren, kullanıcıyı tıklamaya teşvik eden bir eylem çağrısı (call-to-action) içeren, 150-160 karakter aralığında bir açıklama yaz.
 
 4.  **E-E-A-T ve Yapısal Veri:**
-    -   **Uzmanlık:** Metni, konunun uzmanı bir kişi yazmış gibi kaleme al. Teknik detaylardan kaçınma.
+    -   **Uzmanlık:** Metni, konunun uzmanı bir kişi yazmış gibi kaleme al. Teknik detaylardan kaçınma. Metni kullanıcıların anlayabileceği bir dille yaz. Bazen gerçek bir insan yazdığını onlara hissettir ama bu profesyoneller gibi olsun.
     -   **SSS (FAQ) Bölümü:** Makalenin sonuna, konuyla ilgili Google'da "Kullanıcılar bunları da sordu" (People Also Ask) bölümünde çıkabilecek 3-4 adet soruyu ve cevabını içeren bir SSS bölümü ekle. Bu bölüm, Rank Math'in FAQ Schema'sı ile uyumlu olmalıdır.
 
 **ÇIKTI FORMATI:**
 Tüm çıktıyı AŞAĞIDAKİ GİBİ FORMATLA. Başka hiçbir açıklama, giriş veya sonuç cümlesi EKLEME. Sadece bu yapıyı kullanarak cevap ver.
 
 [ODAK_ANAHTAR_KELIME_START]
-Sadece 1 adet, 2-4 kelimelik odak anahtar kelime buraya gelecek
+Sadece 1 adet, 1 kelimelik veya2-4 kelimelik odak anahtar kelime buraya gelecek. Anahtar kelime uzunluğu metnin içeriğine göre değişir. Bunu sen belirle
 [ODAK_ANAHTAR_KELIME_END]
 
 [YARDIMCI_ANAHTAR_KELIMELER_START]
@@ -97,7 +98,7 @@ onerilen-kisa-url-buraya
     <li>Numaralı liste öğesi 1. Detaylar ve açıklamalar. [Örnek bir dış link için kaynak]</li>
     <li>Numaralı liste öğesi 2. Detaylar ve açıklamalar.</li>
 </ol>
-<p>... metnin geri kalanı (toplamda en az 1500 kelime olacak şekilde) ...</p>
+<p>... metnin geri kalanı (toplamda en az 1500-2000 kelime olacak şekilde) ...</p>
 [ICERIK_END]
 
 [SSS_BOLUMU_START]
