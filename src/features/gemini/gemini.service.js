@@ -5,123 +5,327 @@ require('dotenv').config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Loglama fonksiyonu
-async function logToFile(filename, data) {
-    try {
-        const logDir = path.join(__dirname, '../../logs');
-        const logPath = path.join(logDir, filename);
+const loggerService = require('../logger/logger.service');
 
-        // Logs klasörü yoksa oluştur
-        try {
-            await fs.access(logDir);
-        } catch {
-            await fs.mkdir(logDir, { recursive: true });
-        }
+const basePromptTemplate = (inputData) => {
+    const { title, focusKeyword, content } = inputData;
 
-        // Zaman damgası ekle
-        const timestamp = new Date().toISOString();
-        const logEntry = `[${timestamp}]\n${JSON.stringify(data, null, 2)}\n\n---\n\n`;
-
-        // Dosyaya ekle (append mode)
-        await fs.appendFile(logPath, logEntry, 'utf8');
-    } catch (error) {
-        console.error('Log yazma hatası:', error.message);
+    let contextInfo = '';
+    if (title && focusKeyword && content) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİLER:\n- Başlık: ${title}\n- Odak Anahtar Kelime: ${focusKeyword}\n- Referans Metin: ${content}\n\nBu bilgiler ışığında kapsamlı bir makale yaz.`;
+    } else if (title && focusKeyword) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİLER:\n- Başlık: ${title}\n- Odak Anahtar Kelime: ${focusKeyword}\n\nBu başlık ve anahtar kelime için kapsamlı araştırma yaparak detaylı bir makale yaz.`;
+    } else if (title && content) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİLER:\n- Başlık: ${title}\n- Referans Metin: ${content}\n\nBu başlık için odak anahtar kelime belirle ve kapsamlı bir makale yaz.`;
+    } else if (focusKeyword && content) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİLER:\n- Odak Anahtar Kelime: ${focusKeyword}\n- Referans Metin: ${content}\n\nBu anahtar kelime için uygun bir başlık belirle ve kapsamlı bir makale yaz.`;
+    } else if (title) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİ:\n- Başlık: ${title}\n\nBu başlık için kapsamlı araştırma yaparak odak anahtar kelime belirle ve detaylı bir makale yaz.`;
+    } else if (focusKeyword) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİ:\n- Odak Anahtar Kelime: ${focusKeyword}\n\nBu anahtar kelime için uygun bir başlık belirle ve kapsamlı bir makale yaz.`;
+    } else if (content) {
+        contextInfo = `KULLANICI TARAFINDAN SAĞLANAN BİLGİ:\n- Referans Metin: ${content}\n\nBu metin için uygun başlık ve odak anahtar kelime belirle, kapsamlı bir makale yaz.`;
     }
-}
 
-const basePromptTemplate = `
-Sen, Google'ın E-E-A-T (Deneyim, Uzmanlık, Otorite, Güvenilirlik) prensiplerini benimsemiş, Rank Math SEO eklentisiyle 90+ skor almayı hedefleyen bir SEO içerik/haber/makale stratejistisin. Sana verdiğim konuyla ilgili, kullanıcı arama niyetini (search intent) tamamen karşılayan, son derece detaylı, özgün ve uzman bir dille yazılmış bir makale/haber hazırla.
+    return `
+Sen, Rank Math SEO eklentisiyle 100/100 skor almayı garantileyen bir SEO içerik uzmanısın. İçeriğinizi Rank Math'ın TÜM test kriterlerini karşılayacak şekilde optimize edeceksin. Amacın saygın ve otoriter bir haber sitesi için deneyimli bir içerik üreticisi rolüyle haber/makale yazmak.
 
-**KESİN UYULMASI GEREKEN KURALLAR:**
+**KRİTİK UYARI: İÇERİK UZUNLUĞU**
+- Minimum 1500-2000 kelime ZORUNLU
+- Kısa içerik Rank Math 100/100 skor alamaz
+- İçeriği detaylandırmak için örnekler, açıklamalar ve genişletmeler kullan
+- Her bölüm en az 200-300 kelime olacak şekilde planla
+- Sana verilen başlık, odak anahtar kelime veya içerik bilgileri Türkçe harici bir dil bile olsa sen onu anlayarak Türkçe olarak yaz.
 
-1.  **Anahtar Kelimeler:**
-    -   **Odak Anahtar Kelime:** Konuyla en alakalı, 2-4 kelimelik TEK bir odak anahtar kelime belirle.
-    -   **Yardımcı Anahtar Kelimeler:** Odak anahtar kelimeyi destekleyen, LSI (Latent Semantic Indexing) prensiplerine uygun, virgülle ayrılmış 3-5 adet yardımcı anahtar kelime belirle.
-    -   **Kullanım:** Odak anahtar kelime; H1 başlıkta, ilk paragrafta, en az bir H2 başlıkta, URL'de ve meta açıklamada MUTLAKA geçmelidir. Yardımcı anahtar kelimeler metin içinde doğal bir şekilde serpiştirilmelidir.
+${contextInfo}
 
-2.  **İçerik Yapısı ve Okunabilirlik:**
-    -   **Dil:** Türkçe. İngilizce örnek metin versem bile anlayıp idrak edip metni Türkçe yaz.
-    -   **Kelime Sayısı:** Minimum 1500-2000 kelime. Kendini tekrar etmeden ana odak anahtar kelimelerle ve yardımcı anahtar kelimelerle bilgilendirmeleri yaparak metni uzun tut.
-    -   **Yapı:** Giriş, detaylı alt başlıklar (H2, H3) ve genel değerlendirme şeklinde, ancak 'giriş' ve 'sonuç' kelimelerini başlık olarak kullanma.
-    -   **Okunabilirlik:** Paragraflar en fazla 3-4 cümleden oluşsun. Metin içinde mantıklı yerlerde **maddeleme (bullet points)** ve **numaralı listeler** kullan. Önemli terimleri veya anahtar kelimeleri doğal bir şekilde **kalın (bold)** olarak vurgula.
-    -   **Featured Snippet:** Makalenin giriş bölümünden hemen sonra, konunun en temel sorusuna net ve kısa (40-50 kelime) bir cevap veren bir paragraf ekle. Bu, Google'ın "Öne Çıkan Snippet" alanı için optimize edilmelidir.
+**RANK MATH 100/100 SKOR KRİTERLERİ (KESİN UYUM GEREKİYOR):**
 
-3.  **Meta Verileri (Rank Math için Optimize Edilmiş):**
-    -   **Başlıklar (Titles):** SEO uyumlu, ilgi çekici, başlıkta Odak Anahtar Kelime geçen, 55-60 karakter aralığında 3 adet başlık öner. Başlıklarda sayı veya soru kullanmak performansı artırabilir.
-    -   **URL Slug:** Odak anahtar kelimeyi içeren, kısa (max 70 karakter), sadece küçük harf ve kelimeler arasında tire (-) içeren bir yapı oluştur.
-    -   **Meta Açıklama:** Odak anahtar kelimeyi içeren, kullanıcıyı tıklamaya teşvik eden bir eylem çağrısı (call-to-action) içeren, 150-160 karakter aralığında bir açıklama yaz.
+**1. ANAHTAR KELİME OPTİMİZASYONU (RANK MATH ANAHTAR TESTİ):**
+${focusKeyword ? `- VERİLEN ODAK ANAHTAR KELİME: "${focusKeyword}"` : '- Konuyla en alakalı 2-4 kelimelik odak anahtar kelime belirle'}
+- **Yoğunluk:** %1-2 arasında (Rank Math keyword density testi için kritik)
+- **Dağılım:** H1 başlığı, ilk paragraf, en az 3 H2 başlığı, URL, meta açıklama MUTLAKA geçsin
+- **LSI Anahtar Kelimeler:** 5-7 adet belirle ve metinde doğal şekilde kullan
+- **Doğal Kullanım:** Keyword stuffing yasak, doğal akışta kullan
+- **İkincil Anahtar Kelimeler:** Her biri için ayrı optimizasyon yap
 
-4.  **E-E-A-T ve Yapısal Veri:**
-    -   **Uzmanlık:** Metni, konunun uzmanı bir kişi yazmış gibi kaleme al. Teknik detaylardan kaçınma. Metni kullanıcıların anlayabileceği bir dille yaz. Bazen gerçek bir insan yazdığını onlara hissettir ama bu profesyoneller gibi olsun.
-    -   **SSS (FAQ) Bölümü:** Makalenin sonuna, konuyla ilgili Google'da "Kullanıcılar bunları da sordu" (People Also Ask) bölümünde çıkabilecek 3-4 adet soruyu ve cevabını içeren bir SSS bölümü ekle. Bu bölüm, Rank Math'in FAQ Schema'sı ile uyumlu olmalıdır.
+**2. İÇERİK UZUNLUĞU VE YAPISI:**
+- **Minimum Kelime:** 1500-2000 kelime (Rank Math için kritik!)
+- **Paragraf Uzunluğu:** Her paragraf maksimum 120 kelime
+- **Başlık Hiyerarşisi:** H1 (1 adet) → H2 (4-6 adet) → H3 (2-4 adet)
+- **İçerik Akışı:** Giriş → Detaylı Açıklamalar → Pratik Uygulamalar → İstatistikler → Sonuç (ama bu kelimeleri başlık olarak kullanma, giriş ve sonuç gibi mesela. Doğal akış bu başlıklar altında ilerlesin.)
+
+**3. ZENGİN İÇERİK ELEMANLARI (RANK MATH ZENGİN İÇERİK TESTLERİ):**
+- **Tablolar:** Minimum 1 adet karşılaştırma tablosu (Rank Math tablo testi için)
+- **Listeler:** Bolca bullet point ve numaralı liste kullan (okunabilirlik için kritik)
+- **İstatistikler:** Güncel veriler, araştırmalar ve sayısal bilgiler ekle
+- **Örnekler:** Pratik case study'ler, gerçek hayattan örnekler
+- **Yapısal Veriler:** Schema markup dostu içerik yapısı
+
+**4. OKUNABİLİRLİK OPTİMİZASYONU:**
+- **Cümle Uzunluğu:** Basit ve anlaşılır cümleler
+- **Aktif Ses:** Pasif ses yerine aktif ses kullan
+- **Geçiş Kelimeleri:** Paragraflar arası akıcı geçişler
+- **Dil Seviyesi:** Orta seviye, uzman ama anlaşılır
+
+**5. E-E-A-T UYUMLULUK:**
+- **Uzmanlık:** Konunun derinlemesine bilgisi
+- **Deneyim:** Pratik tavsiyeler ve gerçek örnekler
+- **Otorite:** Güvenilir kaynaklar ve güncel veriler
+- **Güvenilirlik:** Tam ve doğru bilgiler
+
+**6. TEKNİK SEO:**
+- **Meta Başlık:** 55-60 karakter, odak anahtar kelime içeren
+- **Meta Açıklama:** 150-160 karakter, CTA içeren
+- **URL Slug:** Kısa, anahtar kelime içeren
+- **İç Link:** Mantıklı iç bağlantılar öner
+
+**İÇERİK ÜRETİM STRATEJİSİ:**
+1. **Araştırma ve Planlama:** Konuyu derinlemesine araştır
+2. **Anahtar Kelime Entegrasyonu:** Doğal ve stratejik yerleştirme
+3. **Zengin İçerik:** Tablo, liste, görsel ile çeşitlendir
+4. **Uzunluk Garantisi:** 1500+ kelimeyi doldurmak için detaylandır, çabalamaya çalış ama dolmuyorsa da aynı şeyleri tekrarlama.
+5. **Okunabilirlik:** Kısa paragraflar ve anlaşılır dil
+6. **SEO Skoru:** Rank Math 100/100 için tüm kriterleri karşılamaya çalış
 
 **ÇIKTI FORMATI:**
-Tüm çıktıyı AŞAĞIDAKİ GİBİ FORMATLA. Başka hiçbir açıklama, giriş veya sonuç cümlesi EKLEME. Sadece bu yapıyı kullanarak cevap ver.
+Aşağıdaki yapıyı KESİNLİKLE kullan, başka açıklama ekleme:
 
 [ODAK_ANAHTAR_KELIME_START]
-Sadece 1 adet, 1 kelimelik veya2-4 kelimelik odak anahtar kelime buraya gelecek. Anahtar kelime uzunluğu metnin içeriğine göre değişir. Bunu sen belirle
+${focusKeyword || 'Sen belirle: 2-4 kelimelik odak anahtar kelime'}
 [ODAK_ANAHTAR_KELIME_END]
 
 [YARDIMCI_ANAHTAR_KELIMELER_START]
-yardımcı kelime 1, yardımcı kelime 2, yardımcı kelime 3
+yardımcı kelime 1, yardımcı kelime 2, yardımcı kelime 3, yardımcı kelime 4, yardımcı kelime 5, yardımcı kelime 6, yardımcı kelime 7
 [YARDIMCI_ANAHTAR_KELIMELER_END]
 
 [BASLIKLAR_START]
-Önerilen Başlık 1 (55-60 karakter)
-Önerilen Başlık 2 (55-60 karakter)
-Önerilen Başlık 3 (55-60 karakter)
+${title ? `SEO Optimizeli ${title} (55-60 karakter)` : 'Başlık 1 (55-60 karakter)'}
+${title ? `Detaylı ${title} Rehberi (55-60 karakter)` : 'Başlık 2 (55-60 karakter)'}
+${title ? `${title} - 2024 Güncel Bilgiler (55-60 karakter)` : 'Başlık 3 (55-60 karakter)'}
 [BASLIKLAR_END]
 
 [URL_SLUG_START]
-onerilen-kisa-url-buraya
+${focusKeyword ? focusKeyword.toLowerCase().replace(/\\s+/g, '-').replace(/[^a-z0-9-]/g, '') : 'seo-optimizeli-baslik'}
 [URL_SLUG_END]
 
 [META_ACIKLAMA_START]
-150-160 karakterlik, odak anahtar kelimeyi ve eylem çağrısını içeren meta açıklama buraya gelecek.
+${focusKeyword ? `${focusKeyword} hakkında kapsamlı rehber. Detaylı bilgiler, güncel veriler ve pratik tavsiyeler. Hemen öğrenmek için tıklayın!` : 'Konu hakkında uzman görüşleri, güncel bilgiler ve detaylı açıklamalar. Profesyonel rehber için içeriğimizi inceleyin.'}
 [META_ACIKLAMA_END]
 
 [ICERIK_START]
-<h1>Odak Anahtar Kelimeyi İçeren H1 Başlık</h1>
-<p><b>Odak Anahtar Kelime</b> hakkında bilgi veren ve anahtar kelimenin geçtiği ilk paragraf...</p>
-<p>Konunun en temel sorusuna verilen net ve kısa Featured Snippet cevabı burada yer alacak.</p>
-<h2>Odak veya Yardımcı Anahtar Kelimeyi İçeren H2 Başlık</h2>
-<p>Kısa ve okunabilir bir paragraf...</p>
-<p>Bir diğer kısa paragraf. <strong>Önemli bir terim</strong> burada vurgulanabilir.</p>
-<h3>Detaylandıran Bir H3 Başlık</h3>
+<!-- Rank Math 100/100 Skor İçin Kritik Notlar:
+- İçerik toplam uzunluğu: 1500-2000 kelime minimum
+- Anahtar kelime yoğunluğu: %1-2 arasında
+- Kısa paragraflar: Maksimum 120 kelime
+- Görsel sayısı: Minimum 4 adet
+- Tablo sayısı: Minimum 1 adet
+- Liste kullanımı: Bolca bullet point ve numaralı liste
+-->
+
+<h1>H1 Başlık - Odak Anahtar Kelime İçeren</h1>
+
+<p><strong>Odak anahtar kelime</strong> konusunda kapsamlı bir rehber sunmak için bu makaleyi hazırladık. Güncel bilgiler, pratik uygulamalar ve uzman görüşleri ile konuyu derinlemesine ele alacağız.</p>
+
+<p>Konunun temel sorusuna 40-50 kelimelik Featured Snippet cevabı burada yer alacak. Bu bölüm Google'ın öne çıkan snippet özelliği için optimize edilmiştir.</p>
+
+<h2>Temel Kavramlar ve Tanım</h2>
+<p>Öncelikle <strong>odak anahtar kelime</strong> nedir ve neden önemlidir anlamaya çalışalım. Bu kavram, modern dünyada vazgeçilmez bir rol oynuyor.</p>
+
+<p>Kısaca açıklamak gerekirse, temel kavram şu şekilde işliyor. İlk olarak temel prensipleri anlamak gerekiyor. Daha sonra detaylara inmek mümkün oluyor.</p>
+
+<h2>Kapsamlı Uygulama Rehberi</h2>
+<p>Şimdi uygulamaya geçelim. <strong>Odak anahtar kelime</strong> konusunda uzmanların önerileri ve pratik adımlar oldukça önemli.</p>
+
+<h3>Adım 1: Başlangıç ve Hazırlık</h3>
+<p>İlk adımda temel hazırlıkları tamamlamanız gerekiyor. Bu aşama, tüm sürecin temelini oluşturuyor.</p>
+
 <ul>
-    <li>Maddeleme 1</li>
-    <li>Maddeleme 2</li>
-    <li>Maddeleme 3</li>
+    <li><strong>Gerekli araçlar</strong> - Başlamak için hangi araçlara ihtiyacınız var?</li>
+    <li><strong>Temel bilgiler</strong> - Konu hakkında temel bilgileri edinmek</li>
+    <li><strong>Planlama</strong> - Detaylı bir plan yapmak</li>
+    <li><strong>Kaynak araştırması</strong> - Güvenilir kaynaklar bulmak</li>
 </ul>
-<h2>İstatistikler veya Veriler İçeren Bir H2 Başlık</h2>
+
+<h3>Adım 2: Detaylı Uygulama</h3>
+<p>İkinci aşamada uygulamaya geçiyoruz. Bu adım, teoriyi pratiğe dönüştürme sürecidir.</p>
+
 <ol>
-    <li>Numaralı liste öğesi 1. Detaylar ve açıklamalar. [Örnek bir dış link için kaynak]</li>
-    <li>Numaralı liste öğesi 2. Detaylar ve açıklamalar.</li>
+    <li>Birinci aşama: Temel kurulum ve yapılandırma</li>
+    <li>İkinci aşama: Detaylı inceleme ve analiz</li>
+    <li>Üçüncü aşama: Uygulama ve test</li>
+    <li>Dördüncü aşama: İyileştirme ve optimizasyon</li>
 </ol>
-<p>... metnin geri kalanı (toplamda en az 1500-2000 kelime olacak şekilde) ...</p>
+
+<h2>İstatistikler ve Güncel Veriler</h2>
+<p><strong>Odak anahtar kelime</strong> konusunda güncel istatistikler oldukça önemli. İşte dikkat çekici bazı veriler:</p>
+
+<p>Son araştırmalara göre, konunun önemi her geçen gün artıyor. İşte bazı önemli bulgular:</p>
+
+<ul>
+    <li>Yüzde 70'den fazla kullanıcı temel bilgileri arıyor</li>
+    <li>Ortalama kullanım süresi önemli ölçüde arttı</li>
+    <li>Uzman görüşleri giderek daha fazla önem kazanıyor</li>
+</ul>
+
+<h2>Karşılaştırma Tablosu</h2>
+<p>Farklı yaklaşımları karşılaştıralım:</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Yöntem</th>
+            <th>Avantajlar</th>
+            <th>Dezavantajlar</th>
+            <th>Önerilen Kullanım</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Geleneksel Yöntem</td>
+            <td>Güvenilir, test edilmiş</td>
+            <td>Yavaş, karmaşık</td>
+            <td>Temel kullanım için</td>
+        </tr>
+        <tr>
+            <td>Modern Yaklaşım</td>
+            <td>Hızlı, etkili</td>
+            <td>Öğrenme eğrisi</td>
+            <td>Gelişmiş kullanım için</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>En İyi Uygulamalar ve Tavsiyeler</h2>
+<p>Uzmanların önerileri doğrultusunda en iyi uygulamaları sizlerle paylaşıyoruz.</p>
+
+<h3>Profesyonel Tavsiyeler</h3>
+<p>Konunun uzmanları şu noktalara dikkat çekiyor:</p>
+
+<p>İlk olarak, kaliteli kaynak kullanmak çok önemli. Güvenilir bilgiler, başarılı sonuçların anahtarıdır.</p>
+
+<p>İkinci olarak, sürekli güncel kalmak gerekiyor. Teknoloji hızla değişiyor ve gelişiyor.</p>
+
+<h2>Görsel ve Medya Kullanımı</h2>
+<p>Konuyu daha iyi anlamak için görseller oldukça yardımcı oluyor.</p>
+
+<p><em>Görsel 1: Temel kavramları gösteren diyagram (dosya: temel-kavramlar-diagram.png, alt metin: Odak anahtar kelime temel kavramları görsel açıklaması)</em></p>
+
+<p><em>Görsel 2: Uygulama adımları akış şeması (dosya: uygulama-adimlari-schema.png, alt metin: Detaylı uygulama süreci görseli)</em></p>
+
+<p><em>Görsel 3: İstatistikler grafik (dosya: istatistikler-grafik.png, alt metin: Güncel verilerin görsel sunumu)</em></p>
+
+<p><em>Görsel 4: Karşılaştırma tablosu (dosya: karsilastirma-tablosu.png, alt metin: Farklı yöntemlerin karşılaştırılması)</em></p>
+
+<h2>Gelişmiş Teknikler ve İpuçları</h2>
+<p>Daha gelişmiş kullanıcılar için bazı özel teknikler ve ipuçları:</p>
+
+<p>Konunun derinliklerine inmeye başladığınızda, bazı gelişmiş teknikler oldukça faydalı oluyor.</p>
+
+<p>Öncelikle optimizasyon tekniklerini öğrenmek gerekiyor. Bu teknikler, verimliliği önemli ölçüde artırıyor.</p>
+
+<h2>Sık Karşılaşılan Problemler ve Çözümleri</h2>
+<p>Uygulama sırasında karşılaşabileceğiniz yaygın problemler ve çözümleri:</p>
+
+<p>Birçok kullanıcı benzer sorunlarla karşılaşıyor. Bunların çoğu, basit çözümlerle aşılabiliyor.</p>
+
+<h3>Yaygın Sorun 1: Başlangıç Güçlükleri</h3>
+<p>Çoğu kişi başlangıçta bazı zorluklar yaşıyor. Bu oldukça normal bir durum.</p>
+
+<p>Çözüm olarak, adım adım ilerlemek ve temel prensipleri anlamak önemli.</p>
+
+<h3>Yaygın Sorun 2: İleri Düzey Problemler</h3>
+<p>Daha gelişmiş aşamalarda farklı tür sorunlar ortaya çıkabiliyor.</p>
+
+<p>Bu durumda, uzman desteği almak faydalı olabiliyor.</p>
+
+<h2>Gelecek Trendleri ve Öngörüler</h2>
+<p><strong>Odak anahtar kelime</strong> konusunda gelecekte bizi neler bekliyor?</p>
+
+<p>Teknolojinin hızla gelişmesiyle birlikte, yeni trendler ortaya çıkıyor.</p>
+
+<p>Uzmanlar, gelecekte şu gelişmelerin yaşanacağını öngörüyor:</p>
+
+<ul>
+    <li>Daha akıllı sistemlerin ortaya çıkması</li>
+    <li>Kullanıcı deneyimini iyileştiren yeni özellikler</li>
+    <li>Daha hızlı ve etkili çözümler</li>
+</ul>
+
+<h2>Uzman Görüşleri ve Önerileri</h2>
+<p>Konunun önde gelen uzmanlarının görüşleri oldukça değerli.</p>
+
+<p>Dr. Ahmet Yılmaz: "Bu alanda önemli gelişmeler yaşanıyor. Gelecekte çok daha etkili çözümler göreceğiz."</p>
+
+<p>Prof. Ayşe Kaya: "Temel prensipleri anlamak, başarılı olmanın anahtarıdır."</p>
+
+<h2>Detaylı Örnek Çalışmalar</h2>
+<p>Gerçek hayattan örnekler, konuyu daha iyi anlamamıza yardımcı oluyor.</p>
+
+<h3>Başarılı Bir Uygulama Örneği</h3>
+<p>Bir şirketin deneyimini inceleyelim. Bu örnek, iyi bir uygulama örneği olabilir.</p>
+
+<p>Şirket, sistematik bir yaklaşım benimseyerek önemli başarılar elde etti.</p>
+
+<h3>Başka Bir Örnek: Eğitim Sektörü</h3>
+<p>Eğitim alanında da benzer başarı hikayeleri mevcut.</p>
+
+<p>Öğrenciler ve eğitmenler, yeni yöntemlerle önemli kazanımlar elde ediyor.</p>
+
+<h2>Sonuç ve Öneriler</h2>
+<p><strong>Odak anahtar kelime</strong> konusunda kapsamlı bir yolculuk yaptık. Umarız bu rehber sizlere faydalı olmuştur.</p>
+
+<p>Özetlemek gerekirse, temel kavramları anlamak, doğru uygulamak ve sürekli güncel kalmak çok önemli.</p>
+
+<p>Unutmayın, başarı için sabır ve tutarlılık gerekiyor. Adım adım ilerleyerek, hedeflerinize ulaşabilirsiniz.</p>
+
+<p>Bu alanda daha fazla bilgi için uzman kaynakları takip etmenizi öneririz.</p>
 [ICERIK_END]
 
 [SSS_BOLUMU_START]
 <h2>Sıkça Sorulan Sorular</h2>
-<h3>Konuyla İlgili Bir Soru 1?</h3>
-<p>Bu soruya verilen net ve doyurucu cevap.</p>
-<h3>Konuyla İlgili Bir Soru 2?</h3>
-<p>Bu soruya verilen net ve doyurucu cevap.</p>
-<h3>Konuyla İlgili Bir Soru 3?</h3>
-<p>Bu soruya verilen net ve doyurucu cevap.</p>
+<h3>Konuyla ilgili temel soru 1?</h3>
+<p>Detaylı ve doyurucu cevap. Bu bölüm, Google'ın "Kullanıcılar bunları da sordu" (People Also Ask) özelliği için optimize edilmiştir.</p>
+
+<h3>Konuyla ilgili temel soru 2?</h3>
+<p>Uzman görüşü ile kapsamlı açıklama. Pratik örnekler ve gerçek hayattan case study'ler içerir.</p>
+
+<h3>Konuyla ilgili temel soru 3?</h3>
+<p>Kapsamlı açıklama ve adım adım çözüm önerileri. Görseller ve diyagramlar ile desteklenir.</p>
+
+<h3>Konuyla ilgili teknik soru?</h3>
+<p>Teknik detaylar ve gelişmiş özellikler hakkında bilgi. Kod örnekleri ve teknik spesifikasyonlar içerir.</p>
+
+<h3>Konuyla ilgili maliyet/fiyat sorusu?</h3>
+<p>Maliyet analizi ve bütçe önerileri. Farklı seçeneklerin karşılaştırılması ve öneriler.</p>
+
+<h3>Konuyla ilgili gelecek trendleri?</h3>
+<p>Gelecek öngörüleri ve trend analizi. Uzman görüşleri ve araştırma verileri ile desteklenir.</p>
 [SSS_BOLUMU_END]
-
----
-
-**İŞLENECEK METİN:**
 `;
+};
 
 class GeminiService {
-    async generateContent(inputText) {
+    async generateContent(inputData) {
         try {
+            // inputData yapısını kontrol et ve düzenle
+            let processedInput = inputData;
+
+            // Eski format desteği için geriye uyumluluk
+            if (typeof inputData === 'string') {
+                processedInput = { content: inputData };
+            }
+
+            const { title, focusKeyword, content } = processedInput;
+
+            // En az bir input olduğundan emin ol
+            if (!title && !focusKeyword && !content) {
+                throw new Error('En az bir input (başlık, odak anahtar kelime veya içerik) sağlanmalıdır.');
+            }
+
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-            const fullPrompt = basePromptTemplate + inputText;
-            
+            const fullPrompt = basePromptTemplate(processedInput);
+
             console.log("Gemini'ye gönderilen prompt'un başlangıcı:", fullPrompt.substring(0, 200));
 
             const result = await model.generateContent(fullPrompt);
@@ -131,27 +335,35 @@ class GeminiService {
             console.log("Gemini'den ham cevap alındı.");
 
             // Ham cevabı log dosyasına kaydet
-            await logToFile('gemini_responses.log', {
-                prompt: fullPrompt.substring(0, 500) + '...', // İlk 500 karakter
-                rawResponse: text,
-                timestamp: new Date().toISOString()
-            });
+            await loggerService.logGeminiResponse(
+                processedInput,
+                fullPrompt,
+                text,
+                new Date().toISOString()
+            );
 
             return this.parseResponse(text);
 
         } catch (error) {
             console.error("Gemini API Hatası:", error);
-            throw new Error("İçerik üretilirken bir hata oluştu.");
+            throw new Error("İçerik üretilirken bir hata oluştu: " + error.message);
         }
     }
 
     parseResponse(text) {
         const content = this.extractSection(text, "ICERIK")[0] || '';
         const faq = this.extractSection(text, "SSS_BOLUMU")[0] || '';
-        
+
+        // Yardımcı anahtar kelimeleri virgülle ayır ve temizle
+        const secondaryKeywordsRaw = this.extractSection(text, "YARDIMCI_ANAHTAR_KELIMELER")[0] || '';
+        const secondary_keywords = secondaryKeywordsRaw
+            .split(',')
+            .map(keyword => keyword.trim())
+            .filter(keyword => keyword.length > 0);
+
         const parsedData = {
             focus_keyword: this.extractSection(text, "ODAK_ANAHTAR_KELIME")[0] || '',
-            secondary_keywords: this.extractSection(text, "YARDIMCI_ANAHTAR_KELIMELER")[0] || '',
+            secondary_keywords: secondary_keywords.join(', '), // Array'i string'e çevir
             titles: (this.extractSection(text, "BASLIKLAR")[0] || '').split('\n').filter(t => t.trim() !== ''),
             slug: this.extractSection(text, "URL_SLUG")[0] || '',
             meta_description: this.extractSection(text, "META_ACIKLAMA")[0] || '',
@@ -161,7 +373,7 @@ class GeminiService {
         if (parsedData.titles.length === 0) {
             parsedData.titles = ["Başlık Üretilemedi"];
         }
-        
+
         return parsedData;
     }
 

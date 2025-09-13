@@ -1,43 +1,27 @@
 const geminiService = require('../features/gemini/gemini.service');
 const wordpressService = require('../features/wordpress/wordpress.service');
-const fs = require('fs').promises;
-const path = require('path');
-
-// Genel loglama fonksiyonu
-async function logToFile(filename, data) {
-    try {
-        const logDir = path.join(__dirname, '../logs');
-        const logPath = path.join(logDir, filename);
-
-        // Logs klasörü yoksa oluştur
-        try {
-            await fs.access(logDir);
-        } catch {
-            await fs.mkdir(logDir, { recursive: true });
-        }
-
-        // Zaman damgası ekle
-        const timestamp = new Date().toISOString();
-        const logEntry = `[${timestamp}]\n${JSON.stringify(data, null, 2)}\n\n---\n\n`;
-
-        // Dosyaya ekle (append mode)
-        await fs.appendFile(logPath, logEntry, 'utf8');
-    } catch (error) {
-        console.error('Log yazma hatası:', error.message);
-    }
-}
+const loggerService = require('../features/logger/logger.service');
 
 class ContentController {
     async generateAndPost(req, res) {
-        const { inputText } = req.body;
+        const { title, focusKeyword, content: inputText } = req.body;
 
-        if (!inputText) {
-            return res.status(400).json({ error: 'Lütfen bir metin veya başlık girin.' });
+        // En az bir parametre kontrolü
+        if (!title && !focusKeyword && !inputText) {
+            return res.status(400).json({
+                error: 'Lütfen en az bir parametre girin: başlık, odak anahtar kelime veya metin.'
+            });
         }
 
         try {
+            // Input verilerini hazırla
+            const inputData = {};
+            if (title) inputData.title = title.trim();
+            if (focusKeyword) inputData.focusKeyword = focusKeyword.trim();
+            if (inputText) inputData.content = inputText.trim();
+
             // 1. Gemini'den içeriği üret
-            const generatedData = await geminiService.generateContent(inputText);
+            const generatedData = await geminiService.generateContent(inputData);
 
             if (!generatedData || !generatedData.content || generatedData.titles.length === 0) {
                  throw new Error("Gemini'den geçerli bir cevap alınamadı.");
@@ -64,26 +48,23 @@ class ContentController {
             });
 
             // Başarılı işlemi logla
-            await logToFile('content_generation.log', {
-                operation: 'generate_and_post',
-                status: 'success',
-                inputText: inputText.substring(0, 100) + '...',
-                generatedTitle: generatedData.titles[0],
-                wordpressPostId: result.id,
-                wordpressUrl: result.link
-            });
+            await loggerService.logContentGeneration(
+                { title, focusKeyword, content: inputText },
+                generatedData,
+                result,
+                req
+            );
 
         } catch (error) {
             console.error("Controller Hatası:", error.message);
 
             // Hatayı logla
-            await logToFile('content_errors.log', {
-                operation: 'generate_and_post',
-                status: 'error',
-                inputText: inputText ? inputText.substring(0, 100) + '...' : '',
-                error: error.message,
-                stack: error.stack
-            });
+            await loggerService.logContentError(
+                'generate_and_post',
+                { title, focusKeyword, content: inputText },
+                error,
+                req
+            );
 
             res.status(500).json({ error: error.message });
         }

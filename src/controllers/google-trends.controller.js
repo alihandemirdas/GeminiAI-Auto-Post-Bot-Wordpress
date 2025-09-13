@@ -1,32 +1,7 @@
 const googleTrendsService = require('../features/google-trends/google-trends.service');
 const geminiService = require('../features/gemini/gemini.service');
 const wordpressService = require('../features/wordpress/wordpress.service');
-const fs = require('fs').promises;
-const path = require('path');
-
-// Genel loglama fonksiyonu
-async function logToFile(filename, data) {
-    try {
-        const logDir = path.join(__dirname, '../logs');
-        const logPath = path.join(logDir, filename);
-
-        // Logs klasörü yoksa oluştur
-        try {
-            await fs.access(logDir);
-        } catch {
-            await fs.mkdir(logDir, { recursive: true });
-        }
-
-        // Zaman damgası ekle
-        const timestamp = new Date().toISOString();
-        const logEntry = `[${timestamp}]\n${JSON.stringify(data, null, 2)}\n\n---\n\n`;
-
-        // Dosyaya ekle (append mode)
-        await fs.appendFile(logPath, logEntry, 'utf8');
-    } catch (error) {
-        console.error('Log yazma hatası:', error.message);
-    }
-}
+const loggerService = require('../features/logger/logger.service');
 
 class GoogleTrendsController {
 
@@ -57,12 +32,12 @@ class GoogleTrendsController {
             console.error('Trend çekme hatası:', error);
 
             // Hatayı logla
-            await logToFile('controller_errors.log', {
-                operation: 'get_trends',
-                status: 'error',
-                error: error.message,
-                stack: error.stack
-            });
+            await loggerService.logTrendsOperation(
+                'get_trends',
+                'error',
+                { error: error.message, stack: error.stack },
+                req
+            );
 
             res.status(500).json({
                 error: 'Trend verileri alınırken bir hata oluştu.',
@@ -117,15 +92,18 @@ class GoogleTrendsController {
             const wordpressResult = await wordpressService.createDraftPost(postDetails);
 
             // Başarılı sonucu logla
-            await logToFile('manual_content_generation.log', {
-                operation: 'generate_content_for_trend',
-                status: 'success',
-                trendTitle: trendTitle,
-                userInput: userInput,
-                generatedTitle: postDetails.title,
-                wordpressPostId: wordpressResult.id,
-                wordpressUrl: wordpressResult.link
-            });
+            await loggerService.logManualRun(
+                'generate_content_for_trend',
+                'success',
+                {
+                    trendTitle: trendTitle,
+                    userInput: userInput,
+                    generatedTitle: postDetails.title,
+                    wordpressPostId: wordpressResult.id,
+                    wordpressUrl: wordpressResult.link
+                },
+                req
+            );
 
             res.status(201).json({
                 message: 'Trend için içerik başarıyla oluşturuldu!',
@@ -150,14 +128,17 @@ class GoogleTrendsController {
             console.error('Trend için içerik üretme hatası:', error);
 
             // Hatayı logla
-            await logToFile('manual_content_errors.log', {
-                operation: 'generate_content_for_trend',
-                status: 'error',
-                trendTitle: trendTitle,
-                userInput: userInput,
-                error: error.message,
-                stack: error.stack
-            });
+            await loggerService.logManualRun(
+                'generate_content_for_trend',
+                'error',
+                {
+                    trendTitle: trendTitle,
+                    userInput: userInput,
+                    error: error.message,
+                    stack: error.stack
+                },
+                req
+            );
 
             res.status(500).json({
                 error: 'İçerik üretilirken bir hata oluştu.',
